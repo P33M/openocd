@@ -877,7 +877,7 @@ static struct target *get_cortex_m(struct target *target, int32_t coreid)
 	struct target_list *head;
 	struct target *curr;
 
-	foreach_smp_target(head, target->head) {
+	foreach_smp_target(head, target->smp_targets) {
 		curr = head->target;
 		if ((curr->coreid == coreid) && (curr->state == TARGET_HALTED))
 			return curr;
@@ -893,7 +893,7 @@ static int cortex_m_halt_smp(struct target *target)
 	int retval = 0;
 	struct target_list *head;
 	struct target *curr;
-	foreach_smp_target(head, target->head) {
+	foreach_smp_target(head, target->smp_targets) {
 		curr = head->target;
 		if ((curr != target) && (curr->state != TARGET_HALTED)
 			&& target_was_examined(curr))
@@ -918,7 +918,7 @@ static int update_halt_gdb(struct target *target)
 	if (target->gdb_service)
 		gdb_target = target->gdb_service->target;
 
-	foreach_smp_target(head, target->head) {
+	foreach_smp_target(head, target->smp_targets) {
 		curr = head->target;
 		/* skip calling context */
 		if (curr == target)
@@ -1304,7 +1304,7 @@ static int cortex_m_restore_smp(struct target *target, int handle_breakpoints)
 	struct target_list *head;
 	struct target *curr;
 	target_addr_t address;
-	foreach_smp_target(head, target->head) {
+	foreach_smp_target(head, target->smp_targets) {
 		curr = head->target;
 		if ((curr != target) && (curr->state != TARGET_RUNNING)
 			&& target_was_examined(curr)) {
@@ -2896,9 +2896,9 @@ COMMAND_HANDLER(cortex_m_handle_smp_gdb_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
 	int retval = ERROR_OK;
-	struct target_list *head;
-	head = target->head;
-	if (head != (struct target_list *)NULL) {
+	struct list_head *head;
+	head = target->smp_targets;
+	if (head != (struct list_head *)NULL) {
 		if (CMD_ARGC == 1) {
 			int coreid = 0;
 			COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], coreid);
