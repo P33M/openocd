@@ -20,6 +20,8 @@
 #include "config.h"
 #endif
 
+#include <helper/binarybuffer.h>
+#include "helper/types.h"
 #include <target/algorithm.h>
 #include <target/armv7m.h>
 #include <target/cortex_m.h>
@@ -32,6 +34,8 @@
 #define DIE_ID_REG(bluenrgx_info)           (bluenrgx_info->flash_ptr->die_id_reg)
 #define JTAG_IDCODE_REG(bluenrgx_info)      (bluenrgx_info->flash_ptr->jtag_idcode_reg)
 #define FLASH_PAGE_SIZE(bluenrgx_info)      (bluenrgx_info->flash_ptr->flash_page_size)
+
+#define FLASH_SIZE_REG_MASK (0xFFFF)
 
 struct flash_ctrl_priv_data {
 	uint32_t die_id_reg;
@@ -73,6 +77,16 @@ static const struct flash_ctrl_priv_data flash_priv_data_lp = {
 	.part_name = "BLUENRG-LP",
 };
 
+static const struct flash_ctrl_priv_data flash_priv_data_lps = {
+	.die_id_reg = 0x40000000,
+	.jtag_idcode_reg = 0x40000004,
+	.flash_base = 0x10040000,
+	.flash_regs_base = 0x40001000,
+	.flash_page_size = 2048,
+	.jtag_idcode = 0x02028041,
+	.part_name = "BLUENRG-LPS",
+};
+
 struct bluenrgx_flash_bank {
 	bool probed;
 	uint32_t die_id;
@@ -82,8 +96,8 @@ struct bluenrgx_flash_bank {
 static const struct flash_ctrl_priv_data *flash_ctrl[] = {
 	&flash_priv_data_1,
 	&flash_priv_data_2,
-	&flash_priv_data_lp
-};
+	&flash_priv_data_lp,
+	&flash_priv_data_lps};
 
 /* flash_bank bluenrg-x 0 0 0 0 <target#> */
 FLASH_BANK_COMMAND_HANDLER(bluenrgx_flash_bank_command)
@@ -93,7 +107,7 @@ FLASH_BANK_COMMAND_HANDLER(bluenrgx_flash_bank_command)
 	bluenrgx_info = calloc(1, sizeof(*bluenrgx_info));
 
 	/* Check allocation */
-	if (bluenrgx_info == NULL) {
+	if (!bluenrgx_info) {
 		LOG_ERROR("failed to allocate bank structure");
 		return ERROR_FAIL;
 	}
@@ -375,7 +389,7 @@ static int bluenrgx_probe(struct flash_bank *bank)
 	if (retval != ERROR_OK)
 		return retval;
 
-	if (idcode != flash_priv_data_lp.jtag_idcode) {
+	if ((idcode != flash_priv_data_lp.jtag_idcode) && (idcode != flash_priv_data_lps.jtag_idcode)) {
 		retval = target_read_u32(bank->target, BLUENRG2_JTAG_REG, &idcode);
 		if (retval != ERROR_OK)
 			return retval;
@@ -393,6 +407,7 @@ static int bluenrgx_probe(struct flash_bank *bank)
 		}
 	}
 	retval = bluenrgx_read_flash_reg(bank, FLASH_SIZE_REG, &size_info);
+	size_info = size_info & FLASH_SIZE_REG_MASK;
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -428,7 +443,7 @@ static int bluenrgx_auto_probe(struct flash_bank *bank)
 }
 
 /* This method must return a string displaying information about the bank */
-static int bluenrgx_get_info(struct flash_bank *bank, char *buf, int buf_size)
+static int bluenrgx_get_info(struct flash_bank *bank, struct command_invocation *cmd)
 {
 	struct bluenrgx_flash_bank *bluenrgx_info = bank->driver_priv;
 	int mask_number, cut_number;
@@ -436,8 +451,7 @@ static int bluenrgx_get_info(struct flash_bank *bank, char *buf, int buf_size)
 	if (!bluenrgx_info->probed) {
 		int retval = bluenrgx_probe(bank);
 		if (retval != ERROR_OK) {
-			snprintf(buf, buf_size,
-				 "Unable to find bank information.");
+			command_print_sameline(cmd, "Unable to find bank information.");
 			return retval;
 		}
 	}
@@ -445,8 +459,8 @@ static int bluenrgx_get_info(struct flash_bank *bank, char *buf, int buf_size)
 	mask_number = (bluenrgx_info->die_id >> 4) & 0xF;
 	cut_number = bluenrgx_info->die_id & 0xF;
 
-	snprintf(buf, buf_size,
-		 "%s - Rev: %d.%d", bluenrgx_info->flash_ptr->part_name, mask_number, cut_number);
+	command_print_sameline(cmd, "%s - Rev: %d.%d",
+			bluenrgx_info->flash_ptr->part_name, mask_number, cut_number);
 	return ERROR_OK;
 }
 

@@ -605,8 +605,6 @@ static int davinci_write_page_ecc4infix(struct nand_device *nand, uint32_t page,
 		/* write this "out-of-band" data -- infix */
 		davinci_write_block_data(nand, oob, 16);
 		oob += 16;
-		oob_size -= 16;
-
 	} while (data_size);
 
 	/* the last data and OOB writes included the spare area */
@@ -731,7 +729,7 @@ NAND_DEVICE_COMMAND_HANDLER(davinci_nand_device_command)
 	}
 
 	info = calloc(1, sizeof(*info));
-	if (info == NULL)
+	if (!info)
 		goto fail;
 
 	info->eccmode = eccmode;
