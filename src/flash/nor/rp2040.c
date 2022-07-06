@@ -380,7 +380,7 @@ static int rp2040_flash_auto_probe(struct flash_bank *bank)
 	return rp2040_flash_probe(bank);
 }
 
-static int rp2040_flash_info(struct flash_bank *bank, char *buf, int buf_size)
+static int rp2040_flash_info(struct flash_bank *bank, struct command_invocation *cmd)
 {
 	LOG_INFO("RP2040 Flash Info");
 	return ERROR_OK;
