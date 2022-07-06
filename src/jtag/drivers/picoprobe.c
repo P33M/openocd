@@ -275,7 +275,7 @@ static int picoprobe_swd_run_queue(void)
 
 	for (size_t i = 0; i < swd_cmd_queue_length; i++) {
 		if (0 == ((swd_cmd_queue[i].cmd ^ swd_cmd(false, false, DP_TARGETSEL)) &
-				(SWD_CMD_APnDP|SWD_CMD_RnW|SWD_CMD_A32))) {
+				(SWD_CMD_APNDP|SWD_CMD_RNW|SWD_CMD_A32))) {
 			/* Targetsel has no ack so force it */
 			buf_set_u32(swd_cmd_queue[i].trn_ack_data_parity_trn, 1, 3, SWD_ACK_OK);
 		}
@@ -289,17 +289,17 @@ static int picoprobe_swd_run_queue(void)
 
 		LOG_DEBUG_IO("%s %s %s reg %X = %08"PRIx32,
 				ack == SWD_ACK_OK ? "OK" : ack == SWD_ACK_WAIT ? "WAIT" : ack == SWD_ACK_FAULT ? "FAULT" : "JUNK",
-				swd_cmd_queue[i].cmd & SWD_CMD_APnDP ? "AP" : "DP",
-				swd_cmd_queue[i].cmd & SWD_CMD_RnW ? "read" : "write",
+				swd_cmd_queue[i].cmd & SWD_CMD_APNDP ? "AP" : "DP",
+				swd_cmd_queue[i].cmd & SWD_CMD_RNW ? "read" : "write",
 				(swd_cmd_queue[i].cmd & SWD_CMD_A32) >> 1,
 				buf_get_u32(swd_cmd_queue[i].trn_ack_data_parity_trn,
-						1 + 3 + (swd_cmd_queue[i].cmd & SWD_CMD_RnW ? 0 : 1), 32));
+						1 + 3 + (swd_cmd_queue[i].cmd & SWD_CMD_RNW ? 0 : 1), 32));
 
 		if (ack != SWD_ACK_OK) {
 			queued_retval = ack == SWD_ACK_WAIT ? ERROR_WAIT : ERROR_FAIL;
 			goto skip;
 
-		} else if (swd_cmd_queue[i].cmd & SWD_CMD_RnW) {
+		} else if (swd_cmd_queue[i].cmd & SWD_CMD_RNW) {
 			uint32_t data = buf_get_u32(swd_cmd_queue[i].trn_ack_data_parity_trn, 1 + 3, 32);
 			int parity = buf_get_u32(swd_cmd_queue[i].trn_ack_data_parity_trn, 1 + 3 + 32, 1);
 
@@ -339,7 +339,7 @@ static void picoprobe_swd_queue_cmd(uint8_t cmd, uint32_t *dst, uint32_t data, u
 
 	picoprobe_write_bits(&swd_cmd_queue[i].cmd, 0, 8);
 
-	if (swd_cmd_queue[i].cmd & SWD_CMD_RnW) {
+	if (swd_cmd_queue[i].cmd & SWD_CMD_RNW) {
 		/* Queue a read transaction */
 		swd_cmd_queue[i].dst = dst;
 
@@ -358,7 +358,7 @@ static void picoprobe_swd_queue_cmd(uint8_t cmd, uint32_t *dst, uint32_t data, u
 	}
 
 	/* Insert idle cycles after AP accesses to avoid WAIT */
-	if (cmd & SWD_CMD_APnDP) {
+	if (cmd & SWD_CMD_APNDP) {
 		if (ap_delay_clk == 0)
 			return;
 		LOG_DEBUG("Add %d idle cycles", ap_delay_clk);
@@ -369,13 +369,13 @@ static void picoprobe_swd_queue_cmd(uint8_t cmd, uint32_t *dst, uint32_t data, u
 
 static void picoprobe_swd_read_reg(uint8_t cmd, uint32_t *value, uint32_t ap_delay_clk)
 {
-	assert(cmd & SWD_CMD_RnW);
+	assert(cmd & SWD_CMD_RNW);
 	picoprobe_swd_queue_cmd(cmd, value, 0, ap_delay_clk);
 }
 
 static void picoprobe_swd_write_reg(uint8_t cmd, uint32_t value, uint32_t ap_delay_clk)
 {
-	assert(!(cmd & SWD_CMD_RnW));
+	assert(!(cmd & SWD_CMD_RNW));
 	picoprobe_swd_queue_cmd(cmd, NULL, value, ap_delay_clk);
 }
 
@@ -477,7 +477,7 @@ static const struct swd_driver picoprobe_swd = {
 	.write_reg = picoprobe_swd_write_reg,
 	.run = picoprobe_swd_run_queue,
 };
-
+/*
 const char *probe_serial_number = NULL;
 
 static COMMAND_HELPER(handle_serialnum_args, const char **serialNumber)
@@ -516,11 +516,12 @@ static const struct command_registration serialnum_command_handlers[] = {
 	},
 	COMMAND_REGISTRATION_DONE
 };
+*/
 static const char * const picoprobe_transports[] = { "swd", NULL };
 
 struct adapter_driver picoprobe_adapter_driver = {
 	.name = "picoprobe",
-	.commands = serialnum_command_handlers,
+//	.commands = serialnum_command_handlers,
 	.transports = picoprobe_transports,
 	.swd_ops = &picoprobe_swd,
 	.init = picoprobe_init,
@@ -536,8 +537,7 @@ static int picoprobe_usb_open(void)
 	const uint16_t vids[] = { VID, 0 };
 	const uint16_t pids[] = { PID, 0 };
 
-	if (jtag_libusb_open(vids, pids, probe_serial_number,
-			&picoprobe_handle->usb_handle, NULL) != ERROR_OK) {
+	if (jtag_libusb_open(vids, pids, &picoprobe_handle->usb_handle, NULL) != ERROR_OK) {
 		LOG_ERROR("Failed to open or find the device");
 		return ERROR_FAIL;
 	}
